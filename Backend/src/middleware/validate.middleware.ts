@@ -1,14 +1,21 @@
-import { z } from 'zod';
+import { z } from "zod";
+import { Request, Response, NextFunction } from "express";
 
-
-export const validate = (schema: z.ZodSchema) => (req, res, next) => {
-	const result = schema.safeParse(req.body);
-
-	if(!result.success) {
-		return res.status(400).json({ message: 'Invalid request body', errors: result.error.errors })
-	}
-
-
-	req.body = result.data;
-	next();
-}
+export const validate =
+  (schema: z.ZodObject) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      schema.parse({
+        body: req.body,
+        params: req.params,
+        query: req.query,
+      });
+      next();
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors: error.errors,
+      });
+    }
+  };

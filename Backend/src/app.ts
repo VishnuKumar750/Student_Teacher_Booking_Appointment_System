@@ -29,6 +29,10 @@ app.get('/', (req: Request, res: Response) => {
   res.send('hello world');
 });
 
+import authRouter from '@/modules/auth.routes'
+
+app.use('/api/v1/auth', authRouter)
+
 // app.all('*', (req: Request) => {
 
 // })
