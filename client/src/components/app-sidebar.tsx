@@ -1,119 +1,108 @@
-import * as React from "react";
-import { GalleryVerticalEnd } from "lucide-react";
+import {
+  IconDashboard,
+  IconUsers,
+  IconMoneybag,
+  IconBell,
+} from "@tabler/icons-react";
+
+import { NavMain } from "@/components/nav-main";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarRail,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
 
-const getNavMenu = (role: string) => {
-  const normalizedRole = role.toLowerCase();
-  switch (normalizedRole) {
+// ── Define role-based navigation ─────────────────────────────────────
+const getNavItems = (role: string) => {
+  const noramlizeRole = role?.toLowerCase();
+
+  switch (noramlizeRole) {
     case "admin":
       return {
-        navMain: [
+        main: [
           {
-            title: "Index",
-            items: [
-              {
-                title: "Dashboard",
-                url: "/admin",
-              },
-            ],
+            title: "Dashboard",
+            url: "/admin/",
+            icon: IconDashboard,
           },
           {
-            title: "Teacher",
-            items: [
-              {
-                title: "View Teacher",
-                url: "/admin/teachers",
-              },
-            ],
+            title: "Teachers",
+            url: "/admin/teachers",
+            icon: IconUsers,
           },
           {
-            title: "Student",
+            title: "Students",
+            url: "/admin/students",
+            icon: IconUsers,
             items: [
-              {
-                title: "View Student",
-                url: "/admin/students",
-              },
-              {
-                title: "Approve Student",
-                url: "/admin/students/approve",
-              },
+              { title: "Registered Students", url: "/admin/students/list" },
+              { title: "Approval", url: "/admin/students/approval" },
             ],
           },
         ],
       };
+
     case "student":
       return {
-        navMain: [
+        main: [
           {
-            title: "Index",
-            items: [
-              {
-                title: "Dashboard",
-                url: "/student",
-              },
-            ],
+            title: "Dashboard",
+            url: "/student/",
+            icon: IconDashboard,
           },
           {
-            title: "Teacher",
-            items: [
-              {
-                title: "View Teacher",
-                url: "/student/teachers",
-              },
-            ],
+            title: "Teachers",
+            url: "/student/teachers",
+            icon: IconUsers,
           },
           {
-            title: "Appoointments",
+            title: "Appointments",
+            url: "/student/view-appointments",
+            icon: IconUsers,
             items: [
               {
-                title: "View Appointments",
+                title: "Approved Appointments",
                 url: "/student/view-appointments",
+              },
+              {
+                title: "Waiting/cancelled Appointments",
+                url: "/student/pending-appointments",
               },
             ],
           },
         ],
       };
+
     case "teacher":
+    default:
       return {
-        navMain: [
+        main: [
           {
-            title: "Index",
-            items: [
-              {
-                title: "Dashboard",
-                url: "/teacher",
-              },
-            ],
+            title: "Dashboard",
+            url: "/teacher/",
+            icon: IconDashboard,
           },
           {
-            title: "Student",
-            items: [
-              {
-                title: "View Student",
-                url: "/teacher/students",
-              },
-            ],
+            title: "Students",
+            url: "/teacher/students",
+            icon: IconMoneybag,
           },
           {
-            title: "Appoointments",
+            title: "Appointments",
+            url: "/teacher/view-appointments",
+            icon: IconBell,
             items: [
               {
-                title: "View Appointments",
+                title: "Approved Appointments",
                 url: "/teacher/view-appointments",
+              },
+              {
+                title: "Waiting/cancelled Appointments",
+                url: "/teacher/pending-appointments",
               },
             ],
           },
@@ -122,69 +111,32 @@ const getNavMenu = (role: string) => {
   }
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { isMobile, setOpenMobile } = useSidebar();
+export function AppSidebar({ ...props }) {
+  const { user } = useAuth();
+  const role = user?.role ?? "";
 
-  const location = useLocation();
-
-  const data = getNavMenu("teacher");
-  const currentPath = location.pathname;
+  const { main } = getNavItems(role);
 
   return (
-    <Sidebar {...props}>
+    <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <h1 className="font-bold text-xl tracking-tight">MentorMeet</h1>
+            <SidebarMenuButton
+              asChild
+              className="data-[slot=sidebar-menu-button]:p-1.5!"
+            >
+              <a href="#">
+                <span className="text-xl font-bold">GymShark</span>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            {data.navMain.map((group) => (
-              <SidebarMenuItem key={group.title}>
-                <div className="p-2 text-muted-foreground text-sm font-semibold">
-                  {group.title}
-                </div>
-
-                {group.items?.length ? (
-                  <SidebarMenuSub>
-                    {group.items.map((item) => {
-                      // Check if current path exactly matches (or startsWith for nested routes)
-                      const isActive = currentPath === item.url;
-                      return (
-                        <SidebarMenuSubItem key={item.title}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={isActive} // ← this is what shadcn uses
-                          >
-                            <NavLink
-                              to={item.url}
-                              onClick={() => {
-                                if (isMobile) {
-                                  setOpenMobile(false); // ← Close only on mobile
-                                }
-                              }}
-                            >
-                              {item.title}
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      );
-                    })}
-                  </SidebarMenuSub>
-                ) : null}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+        <NavMain items={main} />
       </SidebarContent>
-
-      <SidebarRail />
     </Sidebar>
   );
 }

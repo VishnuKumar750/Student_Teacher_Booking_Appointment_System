@@ -1,131 +1,118 @@
-import { DateTimePicker } from "@/components/date-time-picker";
-import DataTable from "@/components/Table";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+
+// lib/api/student.ts
+import api from "@/axios/axios-api";
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarCheck, MoreVertical } from "lucide-react";
+import DataTable from "@/components/Table";
+import { TeacherBookAppointment } from "@/components/teacher-book-appointment";
 
 interface Student {
   _id: string;
   name: string;
+  email: string;
   rollNo: string;
   department: string;
-  course: string;
-  year: string;
 }
-
-const data: Student[] = [
-  {
-    _id: "1",
-    name: "john",
-    rollNo: "cse-19-2020",
-    department: "computer science",
-    course: "b.tech",
-    year: "2020",
-  },
-];
 
 const columns: ColumnDef<Student>[] = [
   {
     accessorKey: "rollNo",
-    header: "RollNo.",
+    header: "Roll No",
+    cell: ({ row }) => (
+      <span className="font-medium">{row.original.rollNo}</span>
+    ),
   },
   {
     accessorKey: "name",
     header: "Name",
+    cell: ({ row }) => <span>{row.original.name}</span>,
   },
   {
-    accessorKey: "course",
-    header: "Course",
+    accessorKey: "email",
+    header: "Email",
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.email}</span>
+    ),
   },
   {
     accessorKey: "department",
     header: "Department",
+    cell: ({ row }) => <span>{row.original.department}</span>,
   },
   {
-    accessorKey: "year",
-    header: "Year",
-  },
-  {
-    id: "action",
-    header: "Actions",
+    id: "actions",
+    header: "Action",
     cell: ({ row }) => {
       const student = row.original;
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button>
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end">
-            <Dialog>
-              <DropdownMenuItem
-                onSelect={(e) => e.preventDefault()}
-                className="flex items-center gap-2 text-sm"
-              >
-                <DialogTrigger asChild>
-                  <button className="flex items-center gap-2 w-full">
-                    <CalendarCheck className="w-4 h-4" />
-                    <span>Schedule Appointment</span>
-                  </button>
-                </DialogTrigger>
-              </DropdownMenuItem>
-
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Schedule Appointment</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-2">
-                  <Label>Message</Label>
-                  <Textarea
-                    className="min-h-32 max-h-36"
-                    placeholder="Type your message"
-                    aria-label="Textarea for message"
-                  />
-                </div>
-                <DateTimePicker />
-                <DialogFooter className="my-4">
-                  <DialogClose asChild>
-                    <Button variant={"outline"}>Cancel</Button>
-                  </DialogClose>
-                  <Button type="submit">Create Meeting</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      return <TeacherBookAppointment studentId={student._id} />;
     },
   },
 ];
 
+const fetchStudentsForTeacher = async () => {
+  const { data } = await api.get("/teacher/students");
+  console.log("data", data.data);
+  return data.data;
+};
+
 export default function StudentPage() {
+  const {
+    data: students,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["teacher-students"],
+    queryFn: fetchStudentsForTeacher,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
   return (
-    <div className="container mx-auto p-6">
-      {/*student - search, select */}
-      <div></div>
-      {/* table - student */}
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Page header */}
       <div>
-        <DataTable columns={columns} data={data} />
+        <h1 className="text-2xl font-semibold">Students</h1>
+        <p className="text-sm text-muted-foreground">
+          View and manage all students assigned to you
+        </p>
+      </div>
+
+      {/* Content */}
+      <div className="rounded-lg border bg-background p-4">
+        {isLoading && (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Loading students
+          </div>
+        )}
+
+        {isError && (
+          <div className="text-center py-12 text-red-500">
+            {(error as any)?.response?.data?.message ||
+              "Failed to load students"}
+          </div>
+        )}
+
+        {!isLoading && !isError && students?.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            No students found
+          </div>
+        )}
+
+        {!isLoading && !isError && students?.length > 0 && (
+          <div>
+            {/* Replace with DataTable */}
+            <DataTable
+              columns={columns}
+              data={students}
+              searchKey="name"
+              searchPlaceholder="search student..."
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,177 +1,147 @@
-import { AutoCompleteSelect } from "@/components/AutoCompleteSelect";
-import { AutoCompleteSearch } from "@/components/typeahead-search";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
+
+import AddTeacher from "@/components/add-teacher-form";
+import DataTable from "@/components/Table";
+import api from "@/axios/axios-api";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle } from "lucide-react";
-import type { ReactNode } from "react";
-import z from "zod";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { zodResolver } from "@hookform/resolvers/zod";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import UpdateTeacher from "@/components/update-teacher";
+import DeleteTeacher from "@/components/delete-teacher";
 
-interface Teacher {
+/* ───────────────── Types ───────────────── */
+
+interface TeacherResponse {
   _id: string;
   name: string;
   email: string;
   department: string;
   subject: string;
+  profileImage?: string;
+  availability: object;
 }
+
+/* ───────────────── API ───────────────── */
+
+const fetchTeachers = async (): Promise<TeacherResponse[]> => {
+  const { data } = await api.get("/admin/teachers");
+  return data.data;
+};
+
+const deleteTeacher = async (id: string) => {
+  await api.delete(`/teacher/${id}`);
+};
+
+/* ---- Columns ---- */
+const columns: ColumnDef<TeacherResponse>[] = [
+  {
+    accessorKey: "name",
+    header: "Name",
+    cell: ({ row }) => row.original.name,
+  },
+  {
+    accessorKey: "email",
+    header: "Email",
+    cell: ({ row }) => row.original.email,
+  },
+  {
+    header: "Department",
+    cell: ({ row }) => row.original.department,
+  },
+  {
+    header: "Subjects",
+    cell: ({ row }) => row.original.subject,
+  },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => {
+      const teacher = row.original;
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <UpdateTeacher teacherId={teacher._id} teacher={teacher} />
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-red-600" asChild>
+              <DeleteTeacher teacherId={teacher._id} />
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+  },
+];
+
+/* ───────────────── Component ───────────────── */
 
 export default function Teachers() {
-  return (
-    <div>
-      <div>
-        {/* search, select - department, subject*/}
-
-        {/* add button - create teacher*/}
-        <TeacherDialog />
-      </div>
-    </div>
-  );
-}
-
-const teacherSchema = z.object({
-  name: z.string().min(3, "Name is required"),
-  email: z.string().email("Invalid email"),
-  department: z.string().min(2, "Department is required"),
-  subject: z.string().min(2, "subject is required"),
-});
-
-type TeacherFormValues = z.infer<typeof teacherSchema>;
-
-// api
-const createTeacher = async (data: TeacherFormValues) => {
-  // api routes
-};
-const updateTeacher = async ({
-  _id,
-  ...data
-}: { _id: string } & TeacherFormValues) => {};
-
-interface TeacherDialogProps {
-  data?: Teacher;
-  trigger?: ReactNode;
-  children?: ReactNode;
-}
-
-function TeacherDialog({ data, trigger, children }: TeacherDialogProps) {
-  const queryClient = useQueryClient();
-  const isEdit = !!data;
-
-  const form = useForm<TeacherFormValues>({
-    resolver: zodResolver(teacherSchema),
-    defaultValues: {
-      name: data?.name || "",
-      email: data?.email || "",
-      department: data?.department || "",
-      subject: data?.subject || "",
-    },
+  /* ---- Query ---- */
+  const {
+    data: teachers = [],
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["teachers"],
+    queryFn: fetchTeachers,
   });
 
-  const mutation = useMutation({
-    mutationFn: isEdit
-      ? (values: TeacherFormValues) =>
-          updateTeacher({ _id: data!._id, ...values })
-      : (values: TeacherFormValues) => createTeacher(values),
+  /* ---- Mutation ---- */
+  const deleteMutation = useMutation({
+    mutationFn: deleteTeacher,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teachers"] });
-      toast.success(isEdit ? "Teacher updated" : "Teacher created");
-      form.reset();
+      toast.success("Teacher deleted");
+      refetch();
     },
-    onError: (error) => {
-      toast.error(`something went wrong. ${error.message}`);
+    onError: () => {
+      toast.error("Failed to delete teacher");
     },
   });
 
-  const onSubmit = (values: TeacherFormValues) => {
-    mutation.mutate(values);
-  };
-
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button className="bg-foreground text-sm font-bold tracking-tight">
-            <PlusCircle className="mr-2 h-5 w-5" />
-            {isEdit ? "Edit Teacher" : "Add Teacher"}
-          </Button>
-        )}
-      </DialogTrigger>
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Teachers</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage teachers, subjects, and availability
+          </p>
+        </div>
 
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Update Teacher" : "Add New Teacher"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? "Make changes to teacher information."
-              : "Enter details for the new teacher."}
-          </DialogDescription>
-        </DialogHeader>
+        <AddTeacher refresh={refetch} />
+      </div>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" {...form.register("name")} />
-            {form.formState.errors.name && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.name.message}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" {...form.register("email")} />
-            {form.formState.errors.email && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.email.message}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="department">Department</Label>
-            <Input id="department" {...form.register("department")} />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="subject">Subject</Label>
-            <Input id="subject" {...form.register("subject")} />
-          </div>
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => form.reset()}
-              >
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {isEdit ? "Update" : "Create"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {/* Content */}
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Loading teachers...</div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={teachers}
+          searchKey="name"
+          searchPlaceholder="Search teacher..."
+        />
+      )}
+    </div>
   );
 }

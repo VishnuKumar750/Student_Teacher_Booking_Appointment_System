@@ -1,40 +1,33 @@
-import { AutoCompleteSelect } from "@/components/AutoCompleteSelect";
 import DataTable from "@/components/Table";
-import { AutoCompleteSearch } from "@/components/typeahead-search";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Calendar, MoreVertical } from "lucide-react";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/axios/axios-api";
+import { StudentBookAppointment } from "@/components/book-appointment";
 
+/* ───────── types ───────── */
 interface Teacher {
   _id: string;
-  teacherId: string;
   name: string;
   department: string;
   subject: string;
 }
 
-const data: Teacher[] = [
-  {
-    _id: "1",
-    teacherId: "teacher-cse",
-    name: "gourav",
-    department: "ccomputer science",
-    subject: "database",
-  },
-];
+/* ───────── api ───────── */
+const fetchTeachersForStudent = async (): Promise<Teacher[]> => {
+  const { data } = await api.get("/student/teachers");
+  return data?.data ?? [];
+};
 
+/* ───────── columns ───────── */
 const columns: ColumnDef<Teacher>[] = [
-  {
-    accessorKey: "teacherId",
-    header: "Teacher Id",
-  },
   {
     accessorKey: "name",
     header: "Name",
@@ -51,104 +44,53 @@ const columns: ColumnDef<Teacher>[] = [
     id: "action",
     header: "Actions",
     cell: ({ row }) => {
-      const val = row.original;
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <MoreVertical className="w-4 h-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <Calendar className="h-4 w-4" />
-              Book Appointment
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      const teacher = row.original;
+
+      return <StudentBookAppointment teacherId={teacher._id} />;
     },
   },
 ];
 
-interface Option {
-  title: string;
-  value: string;
-}
-
-const departments: Option[] = [
-  { value: "sales", label: "Sales & Marketing" },
-  { value: "finance", label: "Finance & Accounting" },
-  { value: "hr", label: "Human Resources" },
-  { value: "it", label: "Information Technology" },
-  { value: "engineering", label: "Engineering" },
-  { value: "product", label: "Product Management" },
-  { value: "design", label: "Design & UX" },
-  { value: "operations", label: "Operations & Logistics" },
-  { value: "legal", label: "Legal & Compliance" },
-  { value: "support", label: "Customer Support" },
-  { value: "data", label: "Data Science & Analytics" },
-  { value: "security", label: "Information Security" },
-];
-
+/* ───────── component ───────── */
 export default function FindTeachers() {
-  const [department, setDepartment] = useState<string>("");
-  const [subject, setSubject] = useState("");
-  const [selectedTeacher, setSelectedTeacher] = useState<string | null>("");
-
-  const searchTeacher = async (search: string) => {
-    console.log("searched Teacher", search);
-    const result = data.filter((d) => d.name === search);
-    return result;
-  };
+  const {
+    data = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["student-teachers"],
+    queryFn: fetchTeachersForStudent,
+  });
 
   return (
-    <div className="container mx-auto p-6 space-y-4">
-      {/* search teacher, select */}
-      <div>
-        <h1 className="text-lg font-bold tracking-tight">View Teachers</h1>
-        <div className="space-y-4 my-12 flex flex-col gap-4 lg:flex-row ">
-          <div className="space-y-2 ">
-            <Label className="text-sm tracking-tight font-medium">Search</Label>
-            <AutoCompleteSearch
-              placeholder="Search students..."
-              value={selectedTeacher}
-              onValueChange={setSelectedTeacher}
-              searchQueryKey="search"
-              searchFunction={searchTeacher}
-              className="xl:w-md"
-            />
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <div className="space-y-2 flex-1">
-              <Label className="text-sm tracking-tight font-medium">
-                Department
-              </Label>
-              <AutoCompleteSelect
-                options={departments}
-                placeholder={"Select departments"}
-                value={department}
-                onChange={setDepartment}
-                searchPlaceholder={"Search departments"}
-                className="w-full max-w-md"
-              />
-            </div>
-            <div className="space-y-2 flex-1">
-              <Label className="text-sm tracking-tight font-medium">
-                Subject
-              </Label>
-              <AutoCompleteSelect
-                options={departments}
-                placeholder={"Select departments"}
-                value={department}
-                onChange={setDepartment}
-                searchPlaceholder={"Search departments"}
-                className="w-full max-w-md"
-              />
-            </div>
-          </div>
-        </div>
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Page Header */}
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Find Teachers</h1>
+        <p className="text-sm text-muted-foreground">
+          Browse teachers and book appointments
+        </p>
       </div>
-      {/*table*/}
-      <DataTable columns={columns} data={data} />
+
+      {/* States */}
+      {isLoading && (
+        <p className="text-sm text-muted-foreground">Loading teachers…</p>
+      )}
+
+      {isError && (
+        <p className="text-sm text-red-500">
+          Failed to load teachers. Please try again.
+        </p>
+      )}
+
+      {!isLoading && !isError && (
+        <DataTable
+          columns={columns}
+          data={data}
+          searchKey="name"
+          searchPlaceholder="Search teacher name…"
+        />
+      )}
     </div>
   );
 }

@@ -1,16 +1,25 @@
-export const USER_ROLES = [
-	'SUPER_ADMIN',
-	'ADMIN',
-	'TEACHER',
-	'STUDENT'
-] as const;
+import { Document, Types } from "mongoose";
 
-export type UserRole = typeof USER_ROLES[number]
+export type UserRole = "admin" | "teacher" | "student";
 
-export const USER_STATUS = [
-	'ACTIVE',
-	'BLOCKED'
-] as const 
+export type availability = {
+  startTime: string;
+  endTime: string;
+};
 
-export type UserStatus = typeof USER_STATUS[number]
-
+export interface IUser extends Document {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  rollNo: string;
+  isApproved: boolean;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  department?: string;
+  subject?: string;
+  profileImage?: string;
+  availability?: availability;
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}

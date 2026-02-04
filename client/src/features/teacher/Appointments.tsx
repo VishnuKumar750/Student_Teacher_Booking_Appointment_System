@@ -1,194 +1,192 @@
+import { useQuery } from "@tanstack/react-query";
 import DataTable from "@/components/Table";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import api from "@/axios/axios-api";
+import { Calendar, Clock, Loader2, MessageSquare } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Check, MoreVertical, X } from "lucide-react";
+import AppointmentChat from "@/components/chat-message";
+import { Button } from "@/components/ui/button";
+import { formatDate, isPastDate } from "@/lib/date.utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Appointment {
   _id: string;
-  name: string;
-  rollNo: string;
-  department: string;
-  course: string;
-  year: string;
-  message: string;
-  date: string;
-  time: string;
-  sendBy: "TEACHER" | "STUDENT";
-  status: "PENDING" | "APPROVED" | "CANCELLED";
+  student: {
+    name: string;
+    rollNo: string;
+    department: string;
+  };
+  slot: {
+    date: string;
+    start: string;
+    end: string;
+  };
+  purpose: string;
+  status: "approved" | "cancelled";
+  senderRole: "student" | "teacher" | "system";
 }
 
-const data: Appointment[] = [
-  {
-    _id: "1",
-    name: "john",
-    rollNo: "cse-19-2010",
-    department: "computer science",
-    course: "b.tech",
-    year: "2019",
-    message: "meet me for your grades talk.",
-    date: "25-01-2012",
-    time: "10:30",
-    sendBy: "TEACHER",
-    status: "APPROVED",
-  },
-  {
-    _id: "2",
-    name: "Ken",
-    rollNo: "cse-19-2010",
-    department: "computer science",
-    course: "b.tech",
-    year: "2019",
-    message: "meet me for your grades talk.",
-    date: "25-01-2012",
-    time: "10:30",
-    sendBy: "STUDENT",
-    status: "PENDING",
-  },
-];
+const fetchTeacherAppointments = async () => {
+  const { data } = await api.get("/appointment/teacher/appointments");
+  return data.data;
+};
 
 const columns: ColumnDef<Appointment>[] = [
   {
-    accessorKey: "rollNo",
+    accessorKey: "status",
     header: "RollNo.",
-  },
-  {
-    accessorKey: "name",
-    header: "Name",
-  },
-  {
-    id: "academicInfo",
-    header: "Academic Info",
-    accessorFn: (row) => ({
-      dept: row.department,
-      course: row.course,
-      year: row.year,
-    }),
-    cell: ({ getValue }) => {
-      const val = getValue<{ dept: string; course: string; year: string }>();
+    cell: ({ row }) => {
+      const t = row.original.student;
       return (
         <div>
-          <p className="font-semibold">{val.dept}</p>
-          <p className="text-xs text-muted-foreground">
-            {val.course} • {val.year}
-          </p>
+          <p className="font-medium">{t.rollNo}</p>
         </div>
       );
     },
   },
   {
-    accessorKey: "message",
-    header: "Message",
-    cell: ({ getValue }) => {
-      const message = getValue<string>();
+    accessorKey: "student",
+    header: "Student",
+    cell: ({ row }) => {
+      const t = row.original.student;
+      return (
+        <div>
+          <p className="font-medium">{t.name}</p>
+          <p className="text-xs text-muted-foreground">{t.department}</p>
+        </div>
+      );
+    },
+  },
+  {
+    header: "Date",
+    cell: ({ row }) => (
+      <div className="flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-muted-foreground" />
+        {formatDate(row.original.slot.date)}
+      </div>
+    ),
+  },
+  {
+    header: "Time",
+    cell: ({ row }) => (
+      <div className="flex items-center gap-2">
+        <Clock className="h-4 w-4 text-muted-foreground" />
+        {row.original.slot.start} – {row.original.slot.end}
+      </div>
+    ),
+  },
+  {
+    accessorKey: "purpose",
+    header: "Purpose",
+  },
+  {
+    header: "Status",
+    cell: ({ row }) => {
+      const status = row.original.status;
+      return (
+        <Badge
+          className={`${status === "cancelled" ? "bg-destructive" : "bg-green-500"} text-white`}
+        >
+          {status}
+        </Badge>
+      );
+    },
+  },
+  {
+    id: "chat",
+    header: "Chat",
+    cell: ({ row }) => {
+      const appointment = row.original;
+      const chatDisabled = isPastDate(appointment.slot.date);
+      const status = appointment.status === "cancelled";
 
       return (
         <Popover>
           <PopoverTrigger asChild>
-            <button className="max-w-md truncate text-left text-sm cursor-pointer">
-              {message}
-            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={chatDisabled || status}
+              title={
+                chatDisabled
+                  ? "Chat disabled for past appointments"
+                  : "Open chat"
+              }
+            >
+              <MessageSquare className="h-4 w-4" />
+            </Button>
           </PopoverTrigger>
 
-          <PopoverContent className="max-w-sm text-sm">
-            {message}
-          </PopoverContent>
+          {!chatDisabled && (
+            <PopoverContent align="end" className="w-[320px] p-0">
+              <AppointmentChat
+                appointmentId={appointment._id}
+                currentRole="teacher" // or "teacher"
+              />
+            </PopoverContent>
+          )}
         </Popover>
       );
     },
   },
-  {
-    id: "meetingtime",
-    header: "Meeting time",
-    accessorFn: (row) => ({
-      date: row.date,
-      time: row.time,
-    }),
-    cell: ({ getValue }) => {
-      const val = getValue<{ date: string; time: string }>();
-      return (
-        <div className="">
-          <p className="font-semibold">
-            {val.date} | {val.time} AM
-          </p>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "sendBy",
-    header: "Send By",
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-  },
-  {
-    id: "actions",
-    header: "Actions",
-    cell: ({ row }) => {
-      const appointment = row.original;
-
-      return (
-        <>
-          {appointment.status === "PENDING" ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant={"ghost"}>
-                  <MoreVertical className="w-4 h-4 shringk-0" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Action</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {appointment.sendBy !== "TEACHER" && (
-                  <DropdownMenuItem className="flex items-center justify-between">
-                    Approve
-                    <Check className="w-4 h-4" />
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem className="flex items-center justify-between">
-                  cancel
-                  <X className="w-4 h-4" />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <div className="w-full flex items-center r">
-              {appointment.status === "APPROVED" ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <X className="w-4 h-4" />
-              )}
-            </div>
-          )}
-        </>
-      );
-    },
-  },
 ];
-
 export default function TeacherAppointments() {
+  const {
+    data: appointments = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["teacher-appointments"],
+    queryFn: fetchTeacherAppointments,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/*search, select*/}
+      {/* Page title */}
       <div>
-        <h1 className="text-lg font-bold tracking-tight">View Appointments</h1>
+        <h1 className="text-2xl font-semibold">Appointments</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage all student appointment requests
+        </p>
       </div>
-      {/* table of students*/}
-      <div>
-        <DataTable columns={columns} data={data} />
+
+      {/* Table section */}
+      <div className="rounded-lg border bg-background p-4">
+        {isLoading && (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Loading appointments
+          </div>
+        )}
+
+        {isError && (
+          <div className="text-center py-12 text-red-500">
+            {(error as any)?.response?.data?.message ||
+              "Failed to load appointments"}
+          </div>
+        )}
+
+        {!isLoading && !isError && appointments.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            No appointments found
+          </div>
+        )}
+
+        {!isLoading && !isError && appointments.length > 0 && (
+          <DataTable
+            columns={columns}
+            data={appointments}
+            searchKey="status"
+            searchPlaceholder="search appointment status..."
+          />
+        )}
       </div>
     </div>
   );

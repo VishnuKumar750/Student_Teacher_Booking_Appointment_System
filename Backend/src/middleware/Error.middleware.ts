@@ -1,19 +1,46 @@
-import { NextFunction, Request, Response } from 'express';
+import { HTTP_STATUS } from "@/config/http.config";
+import { Request, Response, NextFunction } from "express";
 
-const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
-  if (err.name === 'ValidationError') {
-    const errors = Object.values((err as any).error).map((el: any) => ({
-      message: el.message,
-      field: el.path,
-    }));
+interface ErrorResponse {
+  success: false;
+  error: {
+    statusCode: number;
+    message: string;
+    code?: string;
+    details?: string;
+    stack?: string;
+  };
+}
 
-    return res.status(400).json({
-      success: false,
-      errors,
-    });
+const globalErrorHandler = (
+  err: any,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  let statusCode = err.statusCode || 500;
+  let message = err.message || "Something went wrong";
+
+  if (err.name === "CastError") {
+    statusCode = 400;
+    message = `Invalid ${err.path}: ${err.value}`;
+  } else if (err.code === 11000) {
+    ((statusCode = 409),
+      (message = `Duplicate ${Object.keys(err.keyValue).join(", ")}`));
+  } else if (err.name === "ValidationError") {
+    statusCode = HTTP_STATUS.BAD_REQUEST;
+    message = "Invalid input data";
   }
 
-  if ((err as any).code === 11000) {
-    const field = Object.keys((err as any).keyValue)[0];
-  }
+  const response: ErrorResponse = {
+    success: false,
+    error: {
+      statusCode,
+      message,
+    },
+  };
+
+  res.status(statusCode).json(response);
 };
+
+export default globalErrorHandler;
