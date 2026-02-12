@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 dotenv.config();
 
-import { User } from "@/model/user.model";
+import { User } from "@/modules/user/user.model";
 import { config } from "@/config/app.config";
 const MONGO_URI = config.MONGO_URI;
 

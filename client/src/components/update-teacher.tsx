@@ -1,7 +1,6 @@
+import { useState } from "react";
 import { Edit } from "lucide-react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -9,7 +8,6 @@ import { Button } from "./ui/button";
 import { Field, FieldGroup } from "./ui/field";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
-import { TimeRangePicker } from "./time-picker";
 import api from "@/axios/axios-api";
 import {
   Sheet,
@@ -20,107 +18,106 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
+import type { TeacherResponse } from "@/api/user-api";
 
 /* ───────── schema ───────── */
-const updateTeacherSchema = z
-  .object({
-    name: z.string().min(2).optional(),
-    email: z.string().email().optional(),
-    password: z.string().min(6).optional(),
-    department: z.string().min(1).optional(),
-    subject: z.string().min(3).optional(),
-    availability: z
-      .object({
-        start: z.string(),
-        end: z.string(),
-      })
-      .optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.availability) {
-      if (data.availability.start >= data.availability.end) {
-        ctx.addIssue({
-          path: ["availability", "end"],
-          message: "End time must be after start time",
-          code: z.ZodIssueCode.custom,
-        });
-      }
-    }
-  });
+const updateTeacherSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters").optional(),
+  email: z.string().email("Invalid email").optional(),
+  password: z.string().min(6, "Password must be 6 characters").optional(),
+  department: z.string().min(1, "Department is required").optional(),
+  subject: z.string().min(3, "Subject must be 3 characters").optional(),
+});
 
 type UpdateTeacherForm = z.infer<typeof updateTeacherSchema>;
+type FormErrors = Partial<Record<keyof UpdateTeacherForm, string>>;
+
+/* ───────── shared keys ───────── */
+const FORM_KEYS: readonly (keyof UpdateTeacherForm)[] = [
+  "name",
+  "email",
+  "password",
+  "department",
+  "subject",
+];
 
 /* ───────── api ───────── */
-const updateTeacher = async ({
-  id,
-  payload,
-}: {
+const updateTeacher = async (args: {
   id: string;
   payload: Partial<UpdateTeacherForm>;
 }) => {
-  const { data } = await api.put(`/admin/teachers/${id}`, payload);
+  const { data } = await api.put(`/admin/teachers/${args.id}`, args.payload);
   return data.data;
 };
 
+type TeacherProps = {
+  teacherProp: TeacherResponse;
+};
+
 /* ───────── component ───────── */
-export default function UpdateTeacher({
-  teacherId,
-  teacher,
-}: {
-  teacherId: string;
-  teacher: UpdateTeacherForm;
-}) {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors, dirtyFields },
-  } = useForm<UpdateTeacherForm>({
-    resolver: zodResolver(updateTeacherSchema),
-    defaultValues: {
-      name: teacher.name,
-      email: teacher.email,
-      department: teacher.department,
-      subject: teacher.subject,
-      availability: teacher.availability,
-    },
+export default function UpdateTeacher({ teacherProp }: TeacherProps) {
+  const [form, setForm] = useState<UpdateTeacherForm>({
+    name: teacherProp.name,
+    email: teacherProp.email,
+    department: teacherProp.department,
+    subject: teacherProp.subject,
   });
 
-  const availability = watch("availability");
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  const { mutate, isPending } = useMutation({
+  const { mutate, isPending } = useMutation<
+    unknown,
+    unknown,
+    { id: string; payload: Partial<UpdateTeacherForm> }
+  >({
     mutationFn: updateTeacher,
     onSuccess: () => toast.success("Teacher updated"),
     onError: () => toast.error("Update failed"),
   });
 
-  const onSubmit = (formData: UpdateTeacherForm) => {
-    // 🔥 build payload only from changed fields
+  /* ───────── helpers ───────── */
+  const handleChange = <K extends keyof UpdateTeacherForm>(
+    key: K,
+    value: UpdateTeacherForm[K],
+  ) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
     const payload: Partial<UpdateTeacherForm> = {};
 
-    Object.keys(dirtyFields).forEach((key) => {
-      const typedKey = key as keyof UpdateTeacherForm;
-      payload[typedKey] = formData[typedKey];
+    FORM_KEYS.forEach((key) => {
+      const original = teacherProp[key as keyof TeacherResponse];
+      const current = form[key];
+
+      if (current !== original) {
+        payload[key] = current;
+      }
     });
-
-    // password safety
-    if (!payload.password) delete payload.password;
-
-    // availability safety
-    if (
-      payload.availability &&
-      (!payload.availability.start || !payload.availability.end)
-    ) {
-      delete payload.availability;
-    }
 
     if (Object.keys(payload).length === 0) {
       toast.info("No changes made");
       return;
     }
 
-    mutate({ id: teacherId, payload });
+    const parsed = updateTeacherSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      const nextErrors: FormErrors = {};
+
+      parsed.error.issues.forEach((issue) => {
+        const field = issue.path[0] as keyof UpdateTeacherForm;
+        nextErrors[field] = issue.message;
+      });
+
+      setErrors(nextErrors);
+      return;
+    }
+
+    mutate({ id: teacherProp._id, payload: parsed.data });
   };
 
   return (
@@ -138,56 +135,59 @@ export default function UpdateTeacher({
           <SheetDescription>Update details and save changes.</SheetDescription>
         </SheetHeader>
 
-        <form className="px-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="px-4" onSubmit={handleSubmit}>
           <FieldGroup>
             <Field>
               <Label>Name</Label>
-              <Input {...register("name")} />
+              <Input
+                value={form.name ?? ""}
+                onChange={(e) => handleChange("name", e.target.value)}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name}</p>
+              )}
             </Field>
 
             <Field>
               <Label>Email</Label>
-              <Input {...register("email")} />
+              <Input
+                value={form.email ?? ""}
+                onChange={(e) => handleChange("email", e.target.value)}
+              />
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email}</p>
+              )}
             </Field>
 
             <Field>
               <Label>Password</Label>
-              <Input type="password" {...register("password")} />
+              <Input
+                type="password"
+                value={form.password ?? ""}
+                onChange={(e) => handleChange("password", e.target.value)}
+              />
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password}</p>
+              )}
             </Field>
 
             <div className="flex gap-4">
               <Field>
                 <Label>Department</Label>
-                <Input {...register("department")} />
+                <Input
+                  value={form.department ?? ""}
+                  onChange={(e) => handleChange("department", e.target.value)}
+                />
               </Field>
 
               <Field>
                 <Label>Subject</Label>
-                <Input {...register("subject")} />
+                <Input
+                  value={form.subject ?? ""}
+                  onChange={(e) => handleChange("subject", e.target.value)}
+                />
               </Field>
             </div>
-
-            <Field className="mb-6">
-              <Label>Availability</Label>
-              <TimeRangePicker
-                value={{
-                  startTime: availability?.start || "",
-                  endTime: availability?.end || "",
-                }}
-                onChange={({ startTime, endTime }) => {
-                  setValue(
-                    "availability",
-                    { start: startTime, end: endTime },
-                    { shouldDirty: true, shouldValidate: true },
-                  );
-                }}
-              />
-              {errors.availability?.end && (
-                <p className="text-xs text-destructive">
-                  {errors.availability.end.message}
-                </p>
-              )}
-            </Field>
           </FieldGroup>
 
           <SheetFooter>

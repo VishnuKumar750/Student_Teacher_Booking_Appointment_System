@@ -1,4 +1,4 @@
-import express, { Application, Request, Response, NextFunction } from "express";
+import express, { Application, Request, Response } from "express";
 import dotenv from "dotenv";
 import helmet from "helmet";
 import cors from "cors";
@@ -13,7 +13,7 @@ const app: Application = express();
 // middleware
 dotenv.config();
 app.use(helmet());
-app.use(morgan("combined"));
+app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -36,17 +36,13 @@ const limiter = ratelimit({
 
 app.use(limiter);
 
-import adminRoutes from "@/routes/admin.routes";
-import authRoutes from "@/routes/auth.routes";
-import appointmentRoutes from "@/routes/appointment.routes";
-import teacherRoutes from "@/routes/teacher.routes";
-import studentRoutes from "@/routes/student.routes";
+import authRoutes from "@/modules/auth/auth.routes";
+import appointmentRoutes from "@/modules/appointments/appointment.routes";
+import userRouter from "@/modules/user/user.routes";
 
-app.use("/api/v1/admin", adminRoutes);
-app.use("/api/v1/student", studentRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/appointment", appointmentRoutes);
-app.use("/api/v1/teacher", teacherRoutes);
+app.use("/api/v1/user", userRouter);
 
 // other routes - not found
 app.all("/", (req: Request, res: Response) => {

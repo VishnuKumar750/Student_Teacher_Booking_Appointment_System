@@ -14,11 +14,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
 
 /* ───────── API ───────── */
 const approveStudent = async (studentId: string) => {
-  const { data } = await api.patch(`/admin/students/${studentId}/approve`);
-  return data;
+  const { data } = await api.patch(
+    `/user/${studentId}/student?status=approved`,
+  );
+  return data.data;
 };
 
 /* ───────── Component ───────── */
@@ -27,14 +31,14 @@ export default function StudentRequest({ studentId }: { studentId: string }) {
 
   const approveMutation = useMutation({
     mutationFn: approveStudent,
-    onSuccess: () => {
-      toast.success("Student approved");
+    onSuccess: (data) => {
+      toast.success(data?.message ?? "Student approved");
       queryClient.invalidateQueries({
-        queryKey: ["pending-students"],
+        queryKey: ["students"],
       });
     },
-    onError: () => {
-      toast.error("Failed to approve student");
+    onError: (err: AxiosError<ApiError>) => {
+      toast.error(err?.response?.data.error ?? "Failed to approve student");
     },
   });
 

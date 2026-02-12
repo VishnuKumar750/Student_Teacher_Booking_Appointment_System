@@ -1,11 +1,6 @@
 import ThemeToggle from "@/components/themetoggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuList,
-} from "@/components/ui/navigation-menu";
 import { LayoutDashboardIcon } from "lucide-react";
 import { NavLink } from "react-router-dom";
 

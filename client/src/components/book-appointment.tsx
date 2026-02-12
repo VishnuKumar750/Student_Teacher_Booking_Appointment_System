@@ -18,6 +18,9 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { IntervalSelect } from "./interval-select";
 import api from "@/axios/axios-api";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
+import { useAuth } from "@/hooks/use-auth";
 
 /* ───────── types ───────── */
 type TimeSlot = {
@@ -25,31 +28,54 @@ type TimeSlot = {
   end: string;
 };
 
-type BookAppointmentPayload = {
+type FetchSlotsParams = {
   teacherId: string;
+  studentId: string;
+  date: string;
+};
+
+/* ───────── api ───────── */
+const fetchAvailableSlots = async ({
+  teacherId,
+  studentId,
+  date,
+}: FetchSlotsParams): Promise<TimeSlot[]> => {
+  if (!teacherId || !studentId || !date) return [];
+
+  const { data } = await api.get("/appointment/available-slot", {
+    params: {
+      teacherId,
+      studentId,
+      date,
+    },
+  });
+
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+type BookAppointmentPayload = {
   date: string;
   start: string;
   end: string;
   purpose: string;
 };
 
-/* ───────── api ───────── */
-const fetchAvailableSlots = async (
-  teacherId: string,
-  date: string,
-): Promise<TimeSlot[]> => {
-  if (!teacherId || !date) return [];
-
-  const { data } = await api.get(
-    `/appointment/teacher/${teacherId}/availability`,
-    { params: { date } },
-  );
-
-  return Array.isArray(data?.data) ? data.data : [];
+type BookAppointmentParams = {
+  teacherId: string;
+  studentId: string;
 };
 
-const bookAppointment = async (payload: BookAppointmentPayload) => {
-  const { data } = await api.post("/appointment/book-appointment", payload);
+const bookAppointment = async ({
+  params,
+  payload,
+}: {
+  params: BookAppointmentParams;
+  payload: BookAppointmentPayload;
+}) => {
+  const { data } = await api.post("/appointment/book-appointment", payload, {
+    params,
+  });
+
   return data;
 };
 
@@ -60,6 +86,8 @@ export const StudentBookAppointment = ({
   teacherId: string;
 }) => {
   const queryClient = useQueryClient();
+  const { user, isLoading: authLoading } = useAuth();
+  const studentId = user?.id;
 
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
@@ -72,29 +100,33 @@ export const StudentBookAppointment = ({
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["teacher-availability", teacherId, date],
-    queryFn: () => fetchAvailableSlots(teacherId, date),
-    enabled: Boolean(teacherId && date),
+    queryKey: ["available-slots", teacherId, studentId, date],
+    queryFn: () =>
+      fetchAvailableSlots({
+        teacherId,
+        studentId: studentId!,
+        date,
+      }),
+    enabled: Boolean(!authLoading && teacherId && studentId && date),
   });
 
   /* ───── booking mutation ───── */
   const bookMutation = useMutation({
     mutationFn: bookAppointment,
-    onSuccess: () => {
-      toast.success("Appointment request sent");
+    onSuccess: (data) => {
+      toast.success(data?.message ?? "Appointment request sent");
+
       setOpen(false);
       setDate("");
       setPurpose("");
       setSelectedSlot(undefined);
 
       queryClient.invalidateQueries({
-        queryKey: ["student-appointments"],
+        queryKey: ["appointments"],
       });
     },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message || "Failed to book appointment",
-      );
+    onError: (error: AxiosError<ApiError>) => {
+      toast.error(error?.response?.data?.error || "Failed to book appointment");
     },
   });
 
@@ -104,37 +136,48 @@ export const StudentBookAppointment = ({
     if (!selectedSlot) return;
 
     bookMutation.mutate({
-      teacherId,
-      date,
-      start: selectedSlot.start,
-      end: selectedSlot.end,
-      purpose,
+      params: {
+        teacherId,
+        studentId: studentId!,
+      },
+      payload: {
+        date,
+        start: selectedSlot.start,
+        end: selectedSlot.end,
+        purpose,
+      },
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {/* Trigger */}
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        setOpen(value);
+        if (!value) {
+          setDate("");
+          setPurpose("");
+          setSelectedSlot(undefined);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <CalendarCheck className="h-4 w-4" />
         </Button>
       </DialogTrigger>
 
-      {/* Dialog */}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Book Appointment</DialogTitle>
           <DialogDescription>
-            Choose a date and an available time slot to request an appointment.
+            Choose a date and an available time slot.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
-            {/* Date + Slot */}
-            <div className="flex flex-wrap sm:flex-nowrap gap-4">
+            <div className="flex flex-col gap-4">
               <Field>
                 <FieldLabel>Date</FieldLabel>
                 <div className="relative">
@@ -184,7 +227,6 @@ export const StudentBookAppointment = ({
               </Field>
             </div>
 
-            {/* Purpose */}
             <Field>
               <FieldLabel>Purpose</FieldLabel>
               <Textarea
@@ -197,7 +239,6 @@ export const StudentBookAppointment = ({
             </Field>
           </FieldGroup>
 
-          {/* Footer */}
           <DialogFooter className="gap-2">
             <Button
               type="button"

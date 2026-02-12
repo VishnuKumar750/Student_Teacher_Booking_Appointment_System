@@ -1,6 +1,5 @@
+import { useState } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CirclePlus } from "lucide-react";
@@ -11,43 +10,90 @@ import { Field, FieldGroup, FieldLabel, FieldSet } from "./ui/field";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { TimeRangePicker } from "./time-picker";
 import api from "@/axios/axios-api";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
 
 /* ───────── schema ───────── */
 const teacherSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-  department: z.string().min(1),
-  subject: z.string().min(3),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(6, "Password must be 6+ characters"),
+  department: z.string().min(1, "Department is required"),
+  subject: z.string().min(3, "Subject must be at least 3 characters"),
   availability: z.object({
-    start: z.string(),
-    end: z.string(),
+    start: z.string().min(1, "Start time required"),
+    end: z.string().min(1, "End time required"),
   }),
 });
 
 type TeacherForm = z.infer<typeof teacherSchema>;
+type FormErrors = Partial<Record<string, string>>;
+
+/* ───────── api ───────── */
+const createTeacher = async (payload: TeacherForm) => {
+  const { data } = await api.post("/user/admin/teachers", payload);
+  return data;
+};
 
 export default function AddTeacher({ refresh }: { refresh: () => void }) {
-  const { register, handleSubmit, watch, setValue, reset } =
-    useForm<TeacherForm>({
-      resolver: zodResolver(teacherSchema),
-      defaultValues: {
-        availability: { start: "", end: "" },
-      },
-    });
+  const [form, setForm] = useState<TeacherForm>({
+    name: "",
+    email: "",
+    password: "",
+    department: "",
+    subject: "",
+    availability: { start: "", end: "" },
+  });
 
-  const availability = watch("availability");
+  const [errors, setErrors] = useState<FormErrors>({});
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (data: TeacherForm) => api.post("/admin/teachers", data),
+    mutationFn: createTeacher,
     onSuccess: () => {
       toast.success("Teacher created");
-      reset();
+      setForm({
+        name: "",
+        email: "",
+        password: "",
+        department: "",
+        subject: "",
+        availability: { start: "", end: "" },
+      });
+      setErrors({});
       refresh();
     },
-    onError: (err) =>
-      toast.error(err?.response?.error?.message || "something went wrong"),
+    onError: (err: AxiosError<ApiError>) => {
+      toast.error(err.response?.data?.error || "Something went wrong");
+    },
   });
+
+  /* ───────── helpers ───────── */
+  const setField = <K extends keyof TeacherForm>(
+    key: K,
+    value: TeacherForm[K],
+  ) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const parsed = teacherSchema.safeParse(form);
+
+    if (!parsed.success) {
+      const nextErrors: FormErrors = {};
+
+      parsed.error.issues.forEach((issue) => {
+        nextErrors[issue.path.join(".")] = issue.message;
+      });
+
+      setErrors(nextErrors);
+      return;
+    }
+
+    mutate(parsed.data);
+  };
 
   return (
     <Sheet>
@@ -59,55 +105,84 @@ export default function AddTeacher({ refresh }: { refresh: () => void }) {
       </SheetTrigger>
 
       <SheetContent className="p-4 overflow-auto">
-        <form
-          onSubmit={handleSubmit((data) => mutate(data))}
-          className="space-y-4 mt-6"
-        >
+        <form onSubmit={handleSubmit} className="space-y-4 mt-6">
           <FieldSet>
             <FieldGroup>
               <Field>
                 <FieldLabel>Name</FieldLabel>
-                <Input {...register("name")} />
+                <Input
+                  value={form.name}
+                  onChange={(e) => setField("name", e.target.value)}
+                />
+                {errors.name && (
+                  <p className="text-sm text-red-500">{errors.name}</p>
+                )}
               </Field>
 
               <Field>
                 <FieldLabel>Email</FieldLabel>
-                <Input {...register("email")} />
+                <Input
+                  value={form.email}
+                  onChange={(e) => setField("email", e.target.value)}
+                />
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email}</p>
+                )}
               </Field>
 
               <Field>
                 <FieldLabel>Password</FieldLabel>
-                <Input type="password" {...register("password")} />
+                <Input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setField("password", e.target.value)}
+                />
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password}</p>
+                )}
               </Field>
 
               <Field>
                 <FieldLabel>Department</FieldLabel>
-                <Input {...register("department")} />
+                <Input
+                  value={form.department}
+                  onChange={(e) => setField("department", e.target.value)}
+                />
+                {errors.department && (
+                  <p className="text-sm text-red-500">{errors.department}</p>
+                )}
               </Field>
 
               <Field>
-                <FieldLabel>Subjects</FieldLabel>
-                <Input {...register("subject")} />
+                <FieldLabel>Subject</FieldLabel>
+                <Input
+                  value={form.subject}
+                  onChange={(e) => setField("subject", e.target.value)}
+                />
+                {errors.subject && (
+                  <p className="text-sm text-red-500">{errors.subject}</p>
+                )}
               </Field>
 
               <Field>
                 <FieldLabel>Availability</FieldLabel>
                 <TimeRangePicker
                   value={{
-                    startTime: availability.start,
-                    endTime: availability.end,
+                    startTime: form.availability.start,
+                    endTime: form.availability.end,
                   }}
-                  onChange={({ startTime, endTime }) => {
-                    setValue("availability.start", startTime, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    });
-                    setValue("availability.end", endTime, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    });
-                  }}
+                  onChange={({ startTime, endTime }) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      availability: { start: startTime, end: endTime },
+                    }))
+                  }
                 />
+                {errors["availability.start"] && (
+                  <p className="text-sm text-red-500">
+                    {errors["availability.start"]}
+                  </p>
+                )}
               </Field>
             </FieldGroup>
           </FieldSet>

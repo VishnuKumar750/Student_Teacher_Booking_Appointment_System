@@ -133,7 +133,7 @@ export const TeacherBookAppointment = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
             {/* Date + Slot */}
-            <div className="flex flex-wrap sm:flex-nowrap gap-4">
+            <div className="flex flex-col gap-4">
               <Field>
                 <FieldLabel>Date</FieldLabel>
                 <div className="relative">

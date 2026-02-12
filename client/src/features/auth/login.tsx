@@ -1,5 +1,10 @@
+import { useState } from "react";
 import { GalleryVerticalEnd } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { z } from "zod";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -8,17 +13,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-
-import api from "@/axios/axios-api";
 import { useAuth } from "@/hooks/use-auth";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
+import { signIn } from "@/api/signin-api";
 
-/* ───────────────── Schema ───────────────── */
-
+/* ───────── schema ───────── */
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -26,44 +26,52 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-/* ───────────────── API ───────────────── */
-
-const loginUser = async (payload: LoginForm) => {
-  const { data } = await api.post("/auth/signin", payload);
-  return data.data; // expected: { user: {...} }
-};
-
-/* ───────────────── Component ───────────────── */
-
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const mutation = useMutation({
-    mutationFn: loginUser,
-    onSuccess: (data) => {
-      const user = data;
-      login(user); // store user in auth context + localStorage
+  const [form, setForm] = useState<LoginForm>({
+    email: "",
+    password: "",
+  });
+
+  const [errors, setErrors] = useState<Partial<LoginForm>>({});
+
+  const loginMutation = useMutation({
+    mutationFn: signIn,
+    onSuccess: (user) => {
+      login(user);
       toast.success("Logged in successfully");
-      navigate(`/${user.role}`);
+      navigate(`/${user?.role}`);
     },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.error?.message || "Invalid email or password",
-      );
+    onError: (error: AxiosError<ApiError>) => {
+      toast.error(error.response?.data?.error || "Invalid email or password");
     },
   });
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+    setErrors((prev) => ({ ...prev, [e.target.name]: undefined }));
+  };
 
-  const onSubmit = (data: LoginForm) => {
-    mutation.mutate(data);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const parsed = loginSchema.safeParse(form);
+
+    if (!parsed.success) {
+      const fieldErrors: Partial<LoginForm> = {};
+      parsed.error.issues.forEach((err) => {
+        fieldErrors[err.path[0] as keyof LoginForm] = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    loginMutation.mutate(parsed.data);
   };
 
   return (
@@ -88,10 +96,7 @@ export default function Login() {
 
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <form
-              className="flex flex-col gap-6"
-              onSubmit={handleSubmit(onSubmit)}
-            >
+            <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
               <FieldGroup>
                 <div className="flex flex-col items-center gap-1 text-center">
                   <h1 className="text-2xl font-bold">Login to your account</h1>
@@ -104,29 +109,31 @@ export default function Login() {
                   <FieldLabel>Email</FieldLabel>
                   <Input
                     type="email"
-                    placeholder="m@example.com"
-                    {...register("email")}
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
                   />
                   {errors.email && (
-                    <p className="text-sm text-red-500">
-                      {errors.email.message}
-                    </p>
+                    <p className="text-sm text-red-500">{errors.email}</p>
                   )}
                 </Field>
 
                 <Field>
                   <FieldLabel>Password</FieldLabel>
-                  <Input type="password" {...register("password")} />
+                  <Input
+                    type="password"
+                    name="password"
+                    value={form.password}
+                    onChange={handleChange}
+                  />
                   {errors.password && (
-                    <p className="text-sm text-red-500">
-                      {errors.password.message}
-                    </p>
+                    <p className="text-sm text-red-500">{errors.password}</p>
                   )}
                 </Field>
 
                 <Field>
-                  <Button type="submit" disabled={mutation.isPending}>
-                    {mutation.isPending ? "Logging in..." : "Login"}
+                  <Button type="submit" disabled={loginMutation.isPending}>
+                    {loginMutation.isPending ? "Logging in..." : "Login"}
                   </Button>
                 </Field>
 

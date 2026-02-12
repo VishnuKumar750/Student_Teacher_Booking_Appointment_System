@@ -1,7 +1,6 @@
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -12,49 +11,37 @@ import {
 import { Button } from "@/components/ui/button";
 import { Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import api from "@/axios/axios-api";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
+import { approveAppointment, cancelAppointment } from "@/api/appointment-api";
 
 type Props = {
   appointmentId: string;
 };
 
-// appointment approve
-const approveAppointment = async (appointmentId: string) => {
-  const { data } = await api.patch(`/appointment/approve/${appointmentId}`);
-  return data.data;
-};
-
-// appointment cancel
-const cancelAppointment = async (appointmentId: string) => {
-  const { data } = await api.patch(`/appointment/cancel/${appointmentId}`);
-  return data.data;
-};
-
 export default function AppointmentRequest({ appointmentId }: Props) {
-  // approve mutation
+  const queryClient = useQueryClient();
+
   const approveMutation = useMutation({
     mutationFn: () => approveAppointment(appointmentId),
     onSuccess: () => {
       toast.success("Appointment approved");
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
-    onError: (error: any) => {
-      toast.error("Approval failed", {
-        description: error.response?.data?.message || "Something went wrong",
-      });
+    onError: (error: AxiosError<ApiError>) => {
+      toast.error(error.response?.data?.error || "Approval failed");
     },
   });
 
-  // cancel mutation
   const cancelMutation = useMutation({
     mutationFn: () => cancelAppointment(appointmentId),
     onSuccess: () => {
       toast.success("Appointment cancelled");
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
-    onError: (error: any) => {
-      toast.error("Cancellation failed", {
-        description: error.response?.data?.message || "Something went wrong",
-      });
+    onError: (error: AxiosError<ApiError>) => {
+      toast.error(error.response?.data?.error || "Cancellation failed");
     },
   });
 

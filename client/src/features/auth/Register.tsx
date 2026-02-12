@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { GalleryVerticalEnd } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,8 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Controller, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useMutation } from "@tanstack/react-query";
 
 import api from "@/axios/axios-api";
 import { YearSelect } from "@/components/year-select";
@@ -19,50 +18,96 @@ import {
   studentRegisterSchema,
   type StudentRegisterForm,
 } from "./auth.validator";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
+
+/* ───────── API ───────── */
 
 const registerStudent = async (payload: StudentRegisterForm) => {
-  console.log(payload);
-  const { confirmPassword, ...body } = payload;
-  const { data } = await api.post("/auth/signup", body);
-  return data;
+  const { data } = await api.post("/auth/signup", {
+    name: payload.name,
+    email: payload.email,
+    department: payload.department,
+    year: payload.year,
+    password: payload.password,
+  });
+  return data.data;
 };
 
-/* ───────────────── Component ───────────────── */
+type FormErrors = Partial<Record<keyof StudentRegisterForm, string>>;
+
+/* ───────── Component ───────── */
 
 export default function Register() {
-  /* ---- Mutation ---- */
+  const [form, setForm] = useState<StudentRegisterForm>({
+    name: "",
+    email: "",
+    department: "",
+    year: 2026,
+    password: "",
+    confirmPassword: "",
+  });
+
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof StudentRegisterForm, string>>
+  >({});
+
   const mutation = useMutation({
     mutationFn: registerStudent,
     onSuccess: () => {
-      reset();
+      setForm({
+        name: "",
+        email: "",
+        department: "",
+        year: 2026,
+        password: "",
+        confirmPassword: "",
+      });
       toast.success("Signup successful. Await admin approval.");
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<ApiError>) => {
       toast.error(
         error?.response?.data?.message || "Signup failed. Try again.",
       );
     },
   });
 
-  /* ---- Form ---- */
-  const {
-    register,
-    handleSubmit,
-    control,
-    reset,
-    formState: { errors },
-  } = useForm<StudentRegisterForm>({
-    resolver: zodResolver(studentRegisterSchema),
-  });
-
-  const onSubmit = (data: StudentRegisterForm) => {
-    console.log("submit", data);
-    mutation.mutate(data);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
-  const isSubmitDisabled = mutation.isPending;
+  const handleYearChange = (value: number) => {
+    setForm((prev) => ({
+      ...prev,
+      year: Number(value),
+    }));
+  };
 
-  /* ───────────────── JSX ───────────────── */
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setErrors({});
+
+    const result = studentRegisterSchema.safeParse(form);
+
+    if (!result.success) {
+      const fieldErrors: FormErrors = {};
+      result.error.issues.forEach((err) => {
+        const fieldName = err.path[0] as keyof StudentRegisterForm;
+        fieldErrors[fieldName] = err.message;
+      });
+
+      setErrors(fieldErrors);
+      return;
+    }
+
+    mutation.mutate(form);
+  };
+
+  const isSubmitting = mutation.isPending;
 
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
@@ -86,10 +131,7 @@ export default function Register() {
 
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <form
-              className="flex flex-col gap-6"
-              onSubmit={handleSubmit(onSubmit)}
-            >
+            <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
               <FieldGroup>
                 <div className="flex flex-col items-center gap-1 text-center">
                   <h1 className="text-2xl font-bold">
@@ -102,73 +144,80 @@ export default function Register() {
 
                 <Field>
                   <FieldLabel>Name</FieldLabel>
-                  <Input {...register("name")} />
+                  <Input
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                  />
                   {errors.name && (
-                    <p className="text-sm text-red-500">
-                      {errors.name.message}
-                    </p>
+                    <p className="text-sm text-red-500">{errors.name}</p>
                   )}
                 </Field>
 
                 <Field>
                   <FieldLabel>Email</FieldLabel>
-                  <Input {...register("email")} />
+                  <Input
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                  />
                   {errors.email && (
-                    <p className="text-sm text-red-500">
-                      {errors.email.message}
-                    </p>
+                    <p className="text-sm text-red-500">{errors.email}</p>
                   )}
                 </Field>
 
                 <div className="flex items-center gap-4">
                   <Field>
                     <FieldLabel>Department</FieldLabel>
-                    <Input {...register("department")} />
+                    <Input
+                      name="department"
+                      value={form.department}
+                      onChange={handleChange}
+                    />
                     {errors.department && (
                       <p className="text-sm text-red-500">
-                        {errors.department.message}
+                        {errors.department}
                       </p>
                     )}
                   </Field>
 
                   <Field>
                     <FieldLabel>Year</FieldLabel>
-                    <Controller
-                      name="year"
-                      control={control}
-                      render={({ field }) => (
-                        <YearSelect
-                          value={field.value}
-                          onChange={field.onChange}
-                        />
-                      )}
-                    />
+                    <YearSelect value={form.year} onChange={handleYearChange} />
                     {errors.year && (
-                      <p className="text-sm text-red-500">
-                        {errors.year.message}
-                      </p>
+                      <p className="text-sm text-red-500">{errors.year}</p>
                     )}
                   </Field>
                 </div>
 
                 <Field>
                   <FieldLabel>Password</FieldLabel>
-                  <Input type="password" {...register("password")} />
+                  <Input
+                    type="password"
+                    name="password"
+                    value={form.password}
+                    onChange={handleChange}
+                  />
                 </Field>
 
                 <Field>
                   <FieldLabel>Confirm Password</FieldLabel>
-                  <Input type="password" {...register("confirmPassword")} />
+                  <Input
+                    type="password"
+                    name="confirmPassword"
+                    value={form.confirmPassword}
+                    onChange={handleChange}
+                  />
                   {errors.confirmPassword && (
                     <p className="text-sm text-red-500">
-                      {errors.confirmPassword.message}
+                      {errors.confirmPassword}
                     </p>
                   )}
                 </Field>
 
                 <Field>
-                  <Button type="submit" disabled={isSubmitDisabled}>
-                    {mutation.isPending ? "Creating..." : "Sign Up"}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating..." : "Sign Up"}
                   </Button>
                 </Field>
 

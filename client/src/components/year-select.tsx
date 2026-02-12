@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/select";
 type YearSelectProps = {
   value?: number;
-  onChange: (value: number) => void;
+  onChange?: (value: number) => void;
   startYear?: number;
 };
 

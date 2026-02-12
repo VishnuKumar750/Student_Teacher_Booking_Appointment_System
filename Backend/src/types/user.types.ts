@@ -3,8 +3,8 @@ import { Document, Types } from "mongoose";
 export type UserRole = "admin" | "teacher" | "student";
 
 export type availability = {
-  startTime: string;
-  endTime: string;
+  start: string;
+  end: string;
 };
 
 export interface IUser extends Document {
@@ -14,6 +14,7 @@ export interface IUser extends Document {
   role: UserRole;
   rollNo: string;
   isApproved: boolean;
+  year: number;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
