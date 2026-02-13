@@ -14,7 +14,12 @@ import { config } from "./config/app.config";
 
 const app: Application = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  }),
+);
 
 app.use(helmet());
 app.use(morgan("dev"));
