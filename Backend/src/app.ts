@@ -17,9 +17,15 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+import { config } from "./config/app.config";
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:4173"],
+    origin: [
+      config.FRONTEND_ORIGIN,
+      "http://localhost:5173",
+      "http://localhost:4173",
+    ],
     credentials: true,
   }),
 );
