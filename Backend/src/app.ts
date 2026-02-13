@@ -12,11 +12,6 @@ const app: Application = express();
 
 // middleware
 dotenv.config();
-app.use(helmet());
-app.use(morgan("dev"));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 const allowedOrigins = [config.PRODUCTION_ORIGIN, config.LOCAL_ORIGIN];
 
@@ -34,6 +29,11 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+app.use(helmet());
+app.use(morgan("dev"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 const limiter = ratelimit({
   windowMs: 15 * 60 * 1000,
