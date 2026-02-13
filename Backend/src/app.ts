@@ -7,11 +7,10 @@ import ratelimit from "express-rate-limit";
 import { HTTP_STATUS } from "./config/http.config";
 import globalErrorHandler from "./middleware/Error.middleware";
 import cookieParser from "cookie-parser";
-
-const app: Application = express();
-
 // middleware
 dotenv.config();
+
+const app: Application = express();
 
 const allowedOrigins = [config.PRODUCTION_ORIGIN, config.LOCAL_ORIGIN];
 
