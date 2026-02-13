@@ -18,7 +18,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-import type { TeacherResponse } from "@/api/user-api";
+import type { IUser, TeacherResponse } from "@/api/user-api";
 
 /* ───────── schema ───────── */
 const updateTeacherSchema = z.object({
@@ -51,7 +51,7 @@ const updateTeacher = async (args: {
 };
 
 type TeacherProps = {
-  teacherProp: TeacherResponse;
+  teacherProp: IUser;
 };
 
 /* ───────── component ───────── */

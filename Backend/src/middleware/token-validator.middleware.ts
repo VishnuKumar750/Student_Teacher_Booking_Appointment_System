@@ -1,6 +1,7 @@
 import { HTTP_STATUS } from "@/config/http.config";
 import ApiError from "@/utils/ApiError.utils";
 import { asyncHandler } from "@/utils/asyncHandler.utils";
+import { jwtVerify } from "@/utils/jsonwebtoken.utils";
 
 export const protectRoute = asyncHandler(async (req: any, res, next) => {
   // token from cookies

@@ -105,9 +105,38 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
 
   res.status(HTTP_STATUS.CREATED).json({
     success: true,
-    data: appointment.messages,
+    message: "message sended, wait for reply",
   });
 });
+
+export const getAppointmentMessages = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { appointmentId } = req.params as { appointmentId?: string };
+    if (!appointmentId || !isValidObjectId(appointmentId)) {
+      return res
+        .status(HTTP_STATUS.BAD_REQUEST)
+        .json({ success: false, error: "appointment id is required" });
+    }
+
+    const appointment = await Appointment.findById(appointmentId).lean();
+    if (!appointment) {
+      return res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json({ success: false, error: "no message found" });
+    }
+    const messages = appointment.messages.map((m) => ({
+      _id: m._id,
+      senderRole: m.senderRole,
+      message: m.message,
+      isRead: m.isRead,
+      createdAt: m.createdAt,
+    }));
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json({ success: true, message: "message fetched", data: messages });
+  },
+);
 
 export const getAvailableSlots = asyncHandler(
   async (req: Request, res: Response) => {

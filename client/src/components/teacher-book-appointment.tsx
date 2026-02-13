@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Calendar, CalendarCheck } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { AxiosError } from "axios";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { IntervalSelect } from "./interval-select";
 import api from "@/axios/axios-api";
+import type { ApiError } from "@/Types/api-error";
+import { useAuth } from "@/hooks/use-auth";
 
 /* ───────── types ───────── */
 type TimeSlot = {
@@ -25,30 +28,42 @@ type TimeSlot = {
   end: string;
 };
 
-type BookAppointmentPayload = {
+type FetchSlotsParams = {
+  teacherId: string;
   studentId: string;
   date: string;
-  start: string;
-  end: string;
-  purpose: string;
 };
 
 /* ───────── api ───────── */
-const fetchAvailableSlots = async (
-  studentId: string,
-  date: string,
-): Promise<TimeSlot[]> => {
-  if (!studentId || !date) return [];
+const fetchAvailableSlots = async ({
+  teacherId,
+  studentId,
+  date,
+}: FetchSlotsParams): Promise<TimeSlot[]> => {
+  if (!teacherId || !studentId || !date) return [];
 
-  const { data } = await api.get(
-    `/appointment/student/${studentId}/availability?date=${date}`,
-  );
+  const { data } = await api.get("/appointment/available-slot", {
+    params: { teacherId, studentId, date },
+  });
 
   return Array.isArray(data?.data) ? data.data : [];
 };
 
-const bookAppointment = async (payload: BookAppointmentPayload) => {
-  const { data } = await api.post("/appointment/book/teacher", payload);
+const bookAppointment = async ({
+  params,
+  payload,
+}: {
+  params: { teacherId: string; studentId: string };
+  payload: {
+    date: string;
+    start: string;
+    end: string;
+    purpose: string;
+  };
+}) => {
+  const { data } = await api.post("/appointment/book-appointment", payload, {
+    params,
+  });
   return data;
 };
 
@@ -59,11 +74,14 @@ export const TeacherBookAppointment = ({
   studentId: string;
 }) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
   const [purpose, setPurpose] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | undefined>();
+
+  const teacherId = user?.id;
 
   /* ───── availability query ───── */
   const {
@@ -71,29 +89,33 @@ export const TeacherBookAppointment = ({
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["student-availability", studentId, date],
-    queryFn: () => fetchAvailableSlots(studentId, date),
-    enabled: Boolean(studentId && date),
+    queryKey: ["available-slots", teacherId, studentId, date],
+    queryFn: () =>
+      fetchAvailableSlots({
+        teacherId: teacherId!,
+        studentId,
+        date,
+      }),
+    enabled: Boolean(teacherId && studentId && date),
   });
 
   /* ───── booking mutation ───── */
   const bookMutation = useMutation({
     mutationFn: bookAppointment,
-    onSuccess: () => {
-      toast.success("Appointment request sent");
+    onSuccess: (data) => {
+      toast.success(data?.message ?? "Appointment request sent");
+
       setOpen(false);
       setDate("");
       setPurpose("");
       setSelectedSlot(undefined);
 
       queryClient.invalidateQueries({
-        queryKey: ["teacher-appointments"],
+        queryKey: ["appointments"],
       });
     },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message || "Failed to book appointment",
-      );
+    onError: (error: AxiosError<ApiError>) => {
+      toast.error(error?.response?.data?.error || "Failed to book appointment");
     },
   });
 
@@ -103,36 +125,44 @@ export const TeacherBookAppointment = ({
     if (!selectedSlot) return;
 
     bookMutation.mutate({
-      studentId,
-      date,
-      start: selectedSlot.start,
-      end: selectedSlot.end,
-      purpose,
+      params: { teacherId: teacherId!, studentId },
+      payload: {
+        date,
+        start: selectedSlot.start,
+        end: selectedSlot.end,
+        purpose,
+      },
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {/* Trigger */}
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        setOpen(value);
+        if (!value) {
+          setDate("");
+          setPurpose("");
+          setSelectedSlot(undefined);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <CalendarCheck className="h-4 w-4" />
         </Button>
       </DialogTrigger>
 
-      {/* Dialog */}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Book Appointment</DialogTitle>
           <DialogDescription>
-            Choose a date and an available time slot to request an appointment.
+            Choose a date and an available time slot.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <FieldGroup>
-            {/* Date + Slot */}
             <div className="flex flex-col gap-4">
               <Field>
                 <FieldLabel>Date</FieldLabel>
@@ -151,7 +181,7 @@ export const TeacherBookAppointment = ({
                 </div>
               </Field>
 
-              <Field className="flex-1">
+              <Field>
                 <FieldLabel>Available Time Slot</FieldLabel>
 
                 {isLoading && (
@@ -164,14 +194,11 @@ export const TeacherBookAppointment = ({
                   <p className="text-sm text-red-500">Failed to load slots</p>
                 )}
 
-                {!isLoading &&
-                  !isError &&
-                  date &&
-                  availableSlots.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      No slots available
-                    </p>
-                  )}
+                {!isLoading && !isError && date && !availableSlots.length && (
+                  <p className="text-sm text-muted-foreground">
+                    No slots available
+                  </p>
+                )}
 
                 {!isLoading && availableSlots.length > 0 && (
                   <IntervalSelect
@@ -183,7 +210,6 @@ export const TeacherBookAppointment = ({
               </Field>
             </div>
 
-            {/* Purpose */}
             <Field>
               <FieldLabel>Purpose</FieldLabel>
               <Textarea
@@ -196,7 +222,6 @@ export const TeacherBookAppointment = ({
             </Field>
           </FieldGroup>
 
-          {/* Footer */}
           <DialogFooter className="gap-2">
             <Button
               type="button"

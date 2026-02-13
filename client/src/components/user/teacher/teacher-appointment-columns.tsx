@@ -20,7 +20,7 @@ export const getTeacherAppointmentsColumns = (): ColumnDef<Appointment>[] => [
     ),
   },
   {
-    id: "student",
+    id: "name",
     header: "Student",
     cell: ({ row }) => {
       const s = row.original;

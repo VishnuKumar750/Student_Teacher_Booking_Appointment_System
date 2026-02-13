@@ -1,7 +1,6 @@
 import Router from "express";
 import * as AppointmentController from "@/modules/appointments/appoointment.controller";
 import { authenticated } from "@/middleware/auth.middleware";
-import { Appointment } from "./appointment.model";
 
 const router = Router();
 
@@ -35,17 +34,12 @@ router.patch("/:id", AppointmentController.patchAppointment);
 //   AppointmentController.cancelAppointment,
 // );
 
-router.post(
-  "/:appointmentId/message",
-  authenticated,
-  AppointmentController.sendMessage,
-);
+router.post("/:appointmentId/message", AppointmentController.sendMessage);
 
-// router.get(
-//   "/:appointmentId/messages",
-//   authenticated,
-//   AppointmentController.getAppointmentMessage,
-// );
+router.get(
+  "/:appointmentId/messages",
+  AppointmentController.getAppointmentMessages,
+);
 
 // router.get(
 //   "/teacher/appointments",

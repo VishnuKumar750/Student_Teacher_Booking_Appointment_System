@@ -5,6 +5,9 @@ import api from "@/axios/axios-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type { AxiosError } from "axios";
+import type { ApiError } from "@/Types/api-error";
+import { toast } from "sonner";
 
 /* ───────── types ───────── */
 type ChatMessageItem = {
@@ -19,7 +22,7 @@ const fetchAppointmentMessages = async (
   appointmentId: string,
 ): Promise<ChatMessageItem[]> => {
   const { data } = await api.get(`/appointment/${appointmentId}/messages`);
-  return data?.data ?? [];
+  return data?.data;
 };
 
 const sendAppointmentMessage = async ({
@@ -57,15 +60,47 @@ export default function AppointmentChat({
   /* send message */
   const sendMutation = useMutation({
     mutationFn: sendAppointmentMessage,
-    onSuccess: (newMessage) => {
+
+    onMutate: async ({ appointmentId, message }) => {
+      await queryClient.cancelQueries({
+        queryKey: ["appointment-messages", appointmentId],
+      });
+
+      const previousMessages = queryClient.getQueryData<ChatMessageItem[]>([
+        "appointment-messages",
+        appointmentId,
+      ]);
+
+      const optimisticMessage: ChatMessageItem = {
+        _id: `temp-${Date.now()}`,
+        message,
+        senderRole: currentRole,
+        createdAt: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData<ChatMessageItem[]>(
+        ["appointment-messages", appointmentId],
+        (old = []) => [...old, optimisticMessage],
+      );
+
+      return { previousMessages };
+    },
+
+    onError: (err: AxiosError<ApiError>, _variables, context) => {
       queryClient.setQueryData(
         ["appointment-messages", appointmentId],
-        (old: ChatMessageItem[] | undefined) =>
-          old ? [...old, newMessage] : [newMessage],
+        context?.previousMessages,
       );
+
+      toast.error(err?.response?.data?.error || "chat send failed");
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["appointment-messages", appointmentId],
+      });
     },
   });
-
   /* auto scroll */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({

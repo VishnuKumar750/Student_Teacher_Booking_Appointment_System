@@ -2,7 +2,6 @@ import { useRoutes } from "react-router-dom";
 import { AdminRoutes } from "./routes/adminRoutes.tsx";
 import { TeacherRoutes } from "./routes/teacherRoutes.tsx";
 import { PublicRoutes } from "./routes/publicRoutes.tsx";
-import { Route } from "lucide-react";
 import { StudentRoutes } from "./routes/studentRoutes.tsx";
 import NotFound from "./features/NotFound.tsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

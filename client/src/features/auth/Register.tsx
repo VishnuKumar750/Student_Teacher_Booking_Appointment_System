@@ -183,7 +183,10 @@ export default function Register() {
 
                   <Field>
                     <FieldLabel>Year</FieldLabel>
-                    <YearSelect value={form.year} onChange={handleYearChange} />
+                    <YearSelect
+                      value={form.year!}
+                      onChange={handleYearChange}
+                    />
                     {errors.year && (
                       <p className="text-sm text-red-500">{errors.year}</p>
                     )}

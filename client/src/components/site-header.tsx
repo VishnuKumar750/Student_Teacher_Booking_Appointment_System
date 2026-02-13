@@ -88,7 +88,7 @@ export function SiteHeader() {
               <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring">
                 <Avatar>
                   <AvatarImage
-                    src={user?.imageUrl}
+                    src={user?.profileImage}
                     alt={user?.name || "User"}
                     className="grayscale"
                   />

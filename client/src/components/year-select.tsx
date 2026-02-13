@@ -5,9 +5,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 type YearSelectProps = {
-  value?: number;
-  onChange?: (value: number) => void;
+  value: number;
+  onChange: (value: number) => void;
   startYear?: number;
 };
 
@@ -25,7 +26,7 @@ export function YearSelect({
 
   return (
     <Select
-      value={value ? String(value) : undefined}
+      value={String(value)}
       onValueChange={(val) => onChange(Number(val))}
     >
       <SelectTrigger className="w-full">

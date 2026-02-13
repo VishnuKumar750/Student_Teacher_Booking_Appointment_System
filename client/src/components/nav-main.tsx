@@ -111,8 +111,6 @@ export function NavMain({ items, label }: NavMainProps) {
                 {hasSubmenu && isOpen && (
                   <SidebarMenuSub>
                     {item.items!.map((subItem) => {
-                      const subActive = location.pathname === subItem.url;
-
                       return (
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton asChild>
