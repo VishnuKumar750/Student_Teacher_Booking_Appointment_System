@@ -14,22 +14,26 @@ import { config } from "./config/app.config";
 
 const app: Application = express();
 
-const allowedOrigins = [config.PRODUCTION_ORIGIN, config.LOCAL_ORIGIN];
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+const allowedOrigins = [config.PRODUCTION_ORIGIN, config.LOCAL_ORIGIN].filter(
+  Boolean,
 );
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked origin: ${origin}`));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
+app.options("/", cors(corsOptions));
+
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json());
