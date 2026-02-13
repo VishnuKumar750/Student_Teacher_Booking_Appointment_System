@@ -10,6 +10,8 @@ import cookieParser from "cookie-parser";
 // middleware
 dotenv.config();
 
+import { config } from "./config/app.config";
+
 const app: Application = express();
 
 const allowedOrigins = [config.PRODUCTION_ORIGIN, config.LOCAL_ORIGIN];
@@ -49,7 +51,6 @@ app.use(limiter);
 import authRoutes from "@/modules/auth/auth.routes";
 import appointmentRoutes from "@/modules/appointments/appointment.routes";
 import userRouter from "@/modules/user/user.routes";
-import { config } from "./config/app.config";
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/appointment", appointmentRoutes);
